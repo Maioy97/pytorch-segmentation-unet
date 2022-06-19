@@ -1,6 +1,6 @@
 # import torch.segmentation_models_pytorch as smp
 # single model for all views exp
-# experiment with 3 seperate models
+# experiment with 3 separate models
 import gzip
 import torch
 import glob
@@ -24,6 +24,51 @@ class JawsDataset(torch.utils.data.Dataset):
         label_file = gzip.GzipFile(label_path, 'rb')
         label = np.load(label_file)
         return self.transforms(dicom), self.transforms(label)
+
+
+def axial_dataset_train(transforms, validation_ratio = 0.1):
+    files = glob.glob('dataset/axial/train/**/*.dicom.npy.gz')
+    assert len(files) > 0
+    validation_files_count = ceil(len(files) * validation_ratio)
+
+    return (JawsDataset(files[validation_files_count:], transforms),
+            JawsDataset(files[:validation_files_count], transforms))
+
+
+def coronal_dataset_train(transforms, validation_ratio=0.1):
+    files = glob.glob('dataset/coronal/train/**/*.dicom.npy.gz')
+    assert len(files) > 0
+    validation_files_count = ceil(len(files) * validation_ratio)
+
+    return (JawsDataset(files[validation_files_count:], transforms),
+            JawsDataset(files[:validation_files_count], transforms))
+
+
+def sagittal_dataset_train(transforms, validation_ratio=0.1):
+    files = glob.glob('dataset/sagittal/train/**/*.dicom.npy.gz')
+    assert len(files) > 0
+    validation_files_count = ceil(len(files) * validation_ratio)
+
+    return (JawsDataset(files[validation_files_count:], transforms),
+            JawsDataset(files[:validation_files_count], transforms))
+
+
+def axial_dataset_test(transforms):
+    files = glob.glob('dataset/axial/test/**/*.dicom.npy.gz')
+    assert len(files) > 0
+    return JawsDataset(files, transforms)
+
+
+def coronal_dataset_test(transforms):
+    files = glob.glob('dataset/coronal/test/**/*.dicom.npy.gz')
+    assert len(files) > 0
+    return JawsDataset(files, transforms)
+
+
+def sagittal_dataset_test(transforms):
+    files = glob.glob('dataset/sagittal/test/**/*.dicom.npy.gz')
+    assert len(files) > 0
+    return JawsDataset(files, transforms)
 
 
 def full_dataset_train(transforms, validation_ration=0.1):
