@@ -10,23 +10,28 @@ from diceloss import DiceLoss
 # https://github.com/mateuszbuda/brain-segmentation-pytorch/blob/master/loss.py
 from tqdm import tqdm
 from torchvision import transforms
+import data_loaders as DataLoaders
+import matplotlib.pyplot as plt
 
 
-def train_model(model, optimizer, scheduler, data_loaders, num_epochs=25, batch_size=1):
+def train_model(model, optimizer, data_loaders, num_epochs=25, batch_size=1, save_path="unet_axial_Dataset_best.pt"):
     since = time.time()
     vis_freq = 2
     vis_images = 1000
 
-    # best_model_wts = copy.deepcopy(model.state_dict())
+    best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
+
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     dice_loss = DiceLoss()
+
+    history = {'train_loss': [], 'val_loss': []}
 
     # logger = Logger(args.logs)
     loss_train = []
     loss_valid = []
     # best_validation_dsc = 0
-    best_valid_loss = 3  # some relatively big loss
+    best_valid_loss = 3  # some relativly big loss
     step = 0
     for epoch in tqdm(range(num_epochs)):
         print(f'Epoch {epoch}/{num_epochs - 1}')
@@ -61,11 +66,13 @@ def train_model(model, optimizer, scheduler, data_loaders, num_epochs=25, batch_
 
                     # backward + optimize only if in training phase
                     if phase == "train":
+                        history['train_loss'].append(loss.item())
                         loss_train.append(loss.item())
                         loss.backward()
                         optimizer.step()
 
                     if phase == "val":
+                        history['val_loss'].append(loss.item())
                         loss_valid.append(loss.item())
                         y_pred_np = y_pred.detach().cpu().numpy()
                         validation_pred.extend([y_pred_np[s] for s in range(y_pred_np.shape[0])])
@@ -93,8 +100,8 @@ def train_model(model, optimizer, scheduler, data_loaders, num_epochs=25, batch_
                 if curr_valid_loss < best_valid_loss:
                     best_valid_loss = curr_valid_loss
                     best_model_wts = copy.deepcopy(model.state_dict())
-                    torch.save(best_model_wts.state_dict(), f"unet_whole_Dataset_best.pt")
-                    print('saved at epoch ', i)
+                    torch.save(best_model_wts, save_path)
+                    # print('saved at epoch ', epoch)
 
                 print("Best validation loss: {:4f}".format(best_valid_loss))
             # add visualisation
@@ -105,7 +112,20 @@ def train_model(model, optimizer, scheduler, data_loaders, num_epochs=25, batch_
 
     # load best model weights
     model.load_state_dict(best_model_wts)
-    return model
+    return history
+
+
+def draw_graph(history, plt_path: str):
+    plot_path = 'train_val_graph.png'
+    plt.style.use("ggplot")
+    plt.figure()
+    plt.plot(history["train_loss"], label="train_loss")
+    plt.plot(history["test_loss"], label="test_loss")
+    plt.title("Training Loss on Dataset")
+    plt.xlabel("Epoch #")
+    plt.ylabel("Loss")
+    plt.legend(loc="lower left")
+    plt.savefig(plt_path)
 
 
 if __name__ == '__main__':
@@ -122,18 +142,18 @@ if __name__ == '__main__':
         print("model running on cpu")
 
     # get loaders
-    BATCH_SIZE=16
+    BATCH_SIZE = 16
+    num_epochs = 32
     dataset_transforms = transforms.Compose([transforms.ToTensor(), transforms.Resize((256, 256))])
-    full_dataset_train, full_dataset_val = full_dataset_train(dataset_transforms, 0.2)
+    axial_dataset_train, axial_dataset_val = DataLoaders.axial_dataset_train(dataset_transforms, 0.2)
     # full_dtaset_test = full_dataset_test(dataset_transforms)
 
-    full_train_loader = torch.utils.data.DataLoader(full_dataset_train,shuffle=True, batch_size=BATCH_SIZE)
-    full_val_loader = torch.utils.data.DataLoader(full_dataset_val, shuffle=True, batch_size=BATCH_SIZE)
+    full_train_loader = torch.utils.data.DataLoader(axial_dataset_train, shuffle=True, batch_size=BATCH_SIZE)
+    full_val_loader = torch.utils.data.DataLoader(axial_dataset_val, shuffle=True, batch_size=BATCH_SIZE)
     # full_train_dataset_loader = torch.utils.data.DataLoader(full_dataset_train, shuffle=true, batch_size=BATCH_SIZE)
 
     data_loaders = {'train': full_train_loader, 'val': full_val_loader}
     optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 20, gamma=0.1)  # , varbos=True)
-    model = train_model(model, optimizer, scheduler, data_loaders, num_epochs=32, batch_size=BATCH_SIZE)
-    model_path = 'whole_dataset_exp1_final.pth'
-    torch.save(model.state_dict(), model_path)
+    history = train_model(model, optimizer, None, data_loaders, num_epochs, batch_size=BATCH_SIZE)
+    plot_path = './axial_train_val.png'
+    draw_graph(history, plot_path)
