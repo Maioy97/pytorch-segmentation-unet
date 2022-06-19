@@ -10,12 +10,8 @@ import data_loaders
 
 def infer(model, data_loader, dest):
     dice_loss = DiceLoss()
-    # data_iter = iter(data_loader)
-    # images, labels = data_iter.next()
     totalTestLoss = 0
 
-    outputs = []
-    # plt.figure(figsize=(16, 4))
     for i, data in enumerate(data_loader):
         image, mask_label = data
         if torch.cuda.is_available():
@@ -28,8 +24,6 @@ def infer(model, data_loader, dest):
             totalTestLoss += dice_loss(pred, y)
             image = image.cpu().detach().numpy()
             mask = pred.cpu().detach().numpy()
-            # outputs.append(pred)
-            # plt.imshow(image,)
             plt.imsave(os.path.join(dest, f"{i}_mask.png"), image, cmap='bone')
             masked_image = np.ma.masked_array(image, mask)
             plt.imsave(os.path.join(dest, f"{i}_masked.png"), masked_image)
@@ -44,7 +38,9 @@ if __name__ == '__main__':
         model.to('cuda')
     model.eval()
     dataset_transforms = transforms.Compose([transforms.ToTensor(), transforms.Resize((256, 256))])
-    axial_test_loader = data_loaders.axial_dataset_test(dataset_transforms)
+    axial_test = data_loaders.axial_dataset_test(dataset_transforms)
+    axial_test_loader = torch.utils.data.DataLoader(axial_test, shuffle=True,
+                                                    batch_size=1)
     dest_path = 'axial_results_axial_model'
     if not os.path.exists(dest_path):
         os.mkdir(dest_path)
